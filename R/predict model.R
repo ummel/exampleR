@@ -1,4 +1,4 @@
-#' Predict a simple GBM model (test)
+#' Predict a simple GBM model
 #'
 #' Simple model with two predictor \code{X1} and \code{X2}
 #'
