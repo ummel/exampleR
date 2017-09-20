@@ -89,7 +89,7 @@ predictModel <- function(input) {
 
   #-----
 
-  out <- subset(nd, select = c(mrate, div_pre, div_post))
+  out <- subset(nd, select = c(mrate, div_pre, div_post, income, elec))
   out$cost <- eq
 
   return(out)
