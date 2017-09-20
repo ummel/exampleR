@@ -29,7 +29,7 @@ predictModel <- function(input) {
 
   # INPUT FOR TESTING:
   #nd <- data.frame(state = "Texas", hhsize = 4, minors = 2, age = 50, income = 50e3, elec = 100)
-  #t
+  #nd <- data.frame(zip = "80524", hhsize = 4, minors = 2, age = 50)
 
   # Assign geographic variables to 'nd' using zip code provided
   nd <- merge(nd, zip_lookup)
@@ -49,7 +49,8 @@ predictModel <- function(input) {
 
   # Predict the slider preset values
 
-  for (x in ls(pattern = "fitted_model")[-1]) {
+  #for (x in ls(pattern = "fitted_model")[-1]) {
+  for (x in c("fitted_model1", "fitted_model2")) {
     m <- get(x)
     nd[[m$response.name]] <- round(predict.gbm(m, newdata = nd, n.trees = m$n.trees))
   }
