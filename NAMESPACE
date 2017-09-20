@@ -3,5 +3,3 @@
 export(predictModel)
 importFrom(gbm,plot.gbm)
 importFrom(gbm,predict.gbm)
-importFrom("stats", "coef", "formula", "lm")
-importFrom("utils", "read.csv")
