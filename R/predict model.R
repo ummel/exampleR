@@ -29,7 +29,7 @@ predictModel <- function(input) {
 
   # INPUT FOR TESTING:
   #nd <- data.frame(state = "Texas", hhsize = 4, minors = 2, age = 50, income = 50e3, elec = 100)
-  #nd <- data.frame(zip = "80524", hhsize = 4, minors = 2, age = 50)
+  #t
 
   # Assign geographic variables to 'nd' using zip code provided
   nd <- merge(nd, zip_lookup)
