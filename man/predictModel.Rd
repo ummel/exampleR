@@ -2,7 +2,7 @@
 % Please edit documentation in R/predict model.R
 \name{predictModel}
 \alias{predictModel}
-\title{Predict a simple GBM model (test)}
+\title{Predict a simple GBM model}
 \usage{
 predictModel(input)
 }
@@ -10,7 +10,7 @@ predictModel(input)
 \item{input}{data passed on as \code{newdata} to \code{\link{predict.gbm}}}
 }
 \description{
-Simple model with two predictor \code{X1} and \code{X2}
+Simple model with multiple predictors
 }
 \examples{
 mydata <- data.frame(
