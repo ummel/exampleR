@@ -57,7 +57,7 @@ predictModel <- function(input) {
   #------
 
   # How does variation in income affect the result
-  slide <- plot.gbm(fitted_model0, i.var = c("income", "elec"), n.trees = fitted_model$n.trees, return.grid = TRUE, continuous.resolution = 50)
+  slide <- plot.gbm(fitted_model0, i.var = c("income", "elec"), n.trees = fitted_model0$n.trees, return.grid = TRUE, continuous.resolution = 50)
 
   f <- "y ~ income + elec + income:elec"
   fit0 <- lm(formula = formula(f), data = slide)
