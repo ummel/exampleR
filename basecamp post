@@ -1,0 +1,43 @@
+I created a quick and dirty R package to implement the R-side functionality that I have in mind. My hope is that you can run with this while I'm AWOL in coming weeks.
+
+I modified the "exampleR" package that I used to initially test OpenCPU. The new package uses some a small sample of off-the-shelf data from earlier CCL work, so it doesn't include adjustments I will need to make and the results aren't accurate -- but you should be able to tell me if the basic framework is feasible.
+
+The R-side package takes the following user inputs:
+"zip" : five-character string; zip code
+"hhsize" : integer > 0; household size
+"minors" : integer >= 0; number of minors in household
+"age" : integer >= 18; age of head of household
+"income" : numeric > 0; household income (I suspect we may  want to make this a categorical drop-down eventually)
+Those inputs are sent to OpenCPU with a call like:
+
+curl https://ummel.ocpu.io/exampleR/R/predictModel/json 
+-H "Content-Type: application/json" 
+-d '{"input" : [ {"zip":"80524", "hhsize":4, "minors":2, "age":50, "income":60000} ]}'
+
+I get the following JSON output:
+
+[
+  {
+    "mrate": 0.15,
+    "div_pre": 1131,
+    "div_post": 961,
+    "elec": 100,
+    "gas": 72,
+    "cost": "534.7 + 0.4822 * elec + 1.203 * gas"
+  }
+]
+
+The output variables are:
+"mrate" : estimated marginal federal tax bracket
+"div_pre" : pre-tax household dividend amount
+"div_post" : post-tax household dividend amount; simply div_pre * (1 - mrate)
+"elec" : average monthly electricity expenditure for household's with the same initial inputs; this is the preset value for the electricity expenditure slider
+"gas" : average weekly gasoline expenditure for household's with the same initial inputs; this is the preset value for the gasoline expenditure slider
+"cost" : a character string equation that can be used to estimate the annual cost of the policy for the household, given specific slider values for "elec" and "gas". This is a rough example for testing purposes. If I can pass an equation that is parsed and evaluated client-side, that should be fast (instantaneous update of results as sliders change) and give me flexibility in how I eventually relay the "best" way of summarizing the data.
+The estimated net cost to the household is div_post minus the value returned by evaluating the cost equation at the current slider values.
+
+
+
+
+
+

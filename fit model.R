@@ -21,15 +21,16 @@ filter(d, np == 1, nc == 0)$div_pre[1]
 # Household size
 # Number of minors
 # Age of householder
-# Household income (slider variable)
-# Rent expenditure (slider variable)
+# Household income
+# Monthly electricity expenditure (slider variable)
+# Weekly gasoline expenditure (slider variable)
 
 dset <- d %>%
   filter(year == 2012) %>%
   rename(state = state.name, hhsize = np, minors = nc, income = hinc) %>%
   mutate(state = factor(state)) %>%
   inner_join(spend) %>%
-  filter(income > 0, income < quantile(income, 0.95), elec < quantile(elec, 0.95)) %>%  # Restrict income and electricity expenditure within reasonable bounds
+  filter(income > 0, income < quantile(income, 0.975), elec < quantile(elec, 0.99), gas < quantile(gas, 0.99)) %>%  # Restrict income and electricity expenditure within reasonable bounds
   select(hw, state, hhsize, minors, age, income, elec, gas, cost_co2) %>%
   sample_frac(0.05)
 
@@ -59,7 +60,7 @@ save(fitted_model0, file = "data/fitted_model0.rda")
 
 #----------
 
-# Fit GBM model #1 - income
+# Fit GBM model #1 - elec
 # This model uses ONLY the non-slider predictors  (slider predictors are assumed to be those where 'mono' == 1)
 fitted_model1 <- gbm(formula = formula(paste0("elec ~ ", paste(pred[mono != 1], collapse = "+"))),
                      distribution = "gaussian",
@@ -73,7 +74,7 @@ fitted_model1 <- gbm(formula = formula(paste0("elec ~ ", paste(pred[mono != 1], 
 # Save model object to disk as .rda object
 save(fitted_model1, file = "data/fitted_model1.rda")
 
-# Fit GBM model #2 - elec
+# Fit GBM model #2 - gas
 # This model uses ONLY the non-slider predictors (slider predictors are assumed to be those where 'mono' == 1)
 fitted_model2 <- gbm(formula = formula(paste0("gas ~ ", paste(pred[mono != 1], collapse = "+"))),
                      distribution = "gaussian",

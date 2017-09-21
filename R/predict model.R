@@ -47,9 +47,30 @@ predictModel <- function(input) {
 
   #------
 
+  # How does variation in income affect the result
+  # TO DO: THIS NEEDS TO REFLECT SPECIFIC INPUTS NOT INTEGRAL OVER ALL VALUES!!!
+
+  v <- c("elec", "gas")
+  m <- fitted_model0
+  i <- match(v, m$var.names)
+  g <- lapply(i, function(x) seq(from = min(m$var.levels[[x]]), to = max(m$var.levels[[x]]), length.out = 50))
+  names(g) <- v
+  x <- cbind(nd, expand.grid(g))
+  x$y <- predict.gbm(m, newdata = x, n.trees = m$n.trees)
+
+  f <- paste0("y ~ ", paste(v, collapse = " + "))
+  fit <- lm(formula = formula(f), data = x)
+
+  # Create a character vector giving the equation expression to be evaluated using the slider variables as inputs
+  n <- prettyNum(signif(coef(fit), 4))
+  names(n)[1] <- "1"
+  eq <- gsub(" * 1", "", gsub(":", " * ", paste(sprintf("%s * %s", n, names(n)), collapse = " + ")), fixed = TRUE)
+
+  #------
+
   # Predict the slider preset values
 
-  #for (x in ls(pattern = "fitted_model")[-1]) {
+  #for (x in ls(pattern = "fitted_model")[-1]) {  # Not sure if ls() works within package environment
   for (x in c("fitted_model1", "fitted_model2")) {
     m <- get(x)
     nd[[m$response.name]] <- round(predict.gbm(m, newdata = nd, n.trees = m$n.trees))
@@ -57,18 +78,7 @@ predictModel <- function(input) {
 
   #------
 
-  # How does variation in income affect the result
-  slide <- plot.gbm(fitted_model0, i.var = c("elec", "gas"), n.trees = fitted_model0$n.trees, return.grid = TRUE, continuous.resolution = 50)
-
-  f <- "y ~ elec + gas"
-  fit0 <- lm(formula = formula(f), data = slide)
-
-  # Create a character vector giving the equation expression to be evaluated using the slider variables as inputs
-  m <- prettyNum(signif(coef(fit0), 4))
-  names(m)[1] <- "1"
-  eq <- gsub(" * 1", "", gsub(":", " * ", paste(sprintf("%s * %s", m, names(m)), collapse = " + ")), fixed = TRUE)
-
-  #------
+  # DEPRECATED
 
   # pred <- setdiff(names(test), "y")
 
@@ -90,9 +100,10 @@ predictModel <- function(input) {
 
   #-----
 
-  out <- subset(nd, select = c(mrate, div_pre, div_post, elec, gas))
-  out$cost <- eq
+  # Return results data frame
 
+  out <- subset(nd, select = c(div_pre, mrate, elec, gas))
+  out$cost <- eq
   return(out)
 
 }
