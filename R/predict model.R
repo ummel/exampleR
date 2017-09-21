@@ -60,7 +60,7 @@ predictModel <- function(input) {
   # How does variation in income affect the result
   slide <- plot.gbm(fitted_model0, i.var = c("elec", "gas"), n.trees = fitted_model0$n.trees, return.grid = TRUE, continuous.resolution = 50)
 
-  f <- "y ~ elec + gas + elec:gas"
+  f <- "y ~ elec + gas"
   fit0 <- lm(formula = formula(f), data = slide)
 
   # Create a character vector giving the equation expression to be evaluated using the slider variables as inputs
