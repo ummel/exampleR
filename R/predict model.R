@@ -29,7 +29,7 @@ predictModel <- function(input) {
 
   # INPUT FOR TESTING:
   #nd <- data.frame(state = "Texas", hhsize = 4, minors = 2, age = 50, income = 50e3, elec = 100)
-  #nd <- data.frame(zip = "80524", hhsize = 4, minors = 2, age = 50)
+  #nd <- data.frame(zip = "80524", hhsize = 4, minors = 2, age = 50, income = 50e3)
 
   # Assign geographic variables to 'nd' using zip code provided
   nd <- merge(nd, zip_lookup)
@@ -58,9 +58,9 @@ predictModel <- function(input) {
   #------
 
   # How does variation in income affect the result
-  slide <- plot.gbm(fitted_model0, i.var = c("income", "elec"), n.trees = fitted_model0$n.trees, return.grid = TRUE, continuous.resolution = 50)
+  slide <- plot.gbm(fitted_model0, i.var = c("elec", "gas"), n.trees = fitted_model0$n.trees, return.grid = TRUE, continuous.resolution = 50)
 
-  f <- "y ~ income + elec + income:elec"
+  f <- "y ~ elec + gas + elec:gas"
   fit0 <- lm(formula = formula(f), data = slide)
 
   # Create a character vector giving the equation expression to be evaluated using the slider variables as inputs
@@ -90,7 +90,7 @@ predictModel <- function(input) {
 
   #-----
 
-  out <- subset(nd, select = c(mrate, div_pre, div_post, income, elec))
+  out <- subset(nd, select = c(mrate, div_pre, div_post, elec, gas))
   out$cost <- eq
 
   return(out)
