@@ -4,4 +4,6 @@
 #'
 #' @export
 
-inputSummary <- function() input_summary
+inputSummary <- function() {
+  return(input_summary)
+}
