@@ -3,8 +3,7 @@
 #' Simple model with multiple predictors
 #'
 #' @export
-#' @importFrom gbm predict.gbm
-#' @importFrom gbm plot.gbm
+#' @importFrom quantreg predict.rq
 #' @param input data passed on as \code{newdata} to \code{\link{predict.gbm}}
 #' @examples mydata <- data.frame(
 #'    X1=runif(3),
@@ -20,90 +19,127 @@ predictModel <- function(input) {
   } else {
     as.data.frame(input)
   }
-  stopifnot("zip" %in% names(nd))
-  stopifnot("hhsize" %in% names(nd))
-  stopifnot("minors" %in% names(nd))
-  stopifnot("age" %in% names(nd))
+
+  # Check that all necessary input variables are present
+  nms <- names(nd)
+  stopifnot("zip" %in% nms)
+  stopifnot("na" %in% nms)
+  stopifnot("nc" %in% nms)
+  stopifnot("hinc" %in% nms)
+  stopifnot("hfuel" %in% nms)
+  stopifnot("veh" %in% nms)
+  stopifnot("rms" %in% nms)
 
   #-----
 
-  # INPUT FOR TESTING:
-  #nd <- data.frame(state = "Texas", hhsize = 4, minors = 2, age = 50, income = 50e3, elec = 100)
-  #nd <- data.frame(zip = "80524", hhsize = 4, minors = 2, age = 50, income = 50e3)
+  nd$id <- 1:nrow(nd)
 
   # Assign geographic variables to 'nd' using zip code provided
-  nd <- merge(nd, zip_lookup)
+  nd <- merge(nd, zip_lookup, sort = FALSE)
+  nd <- nd[order(nd$id),]
 
   # Adult pre-tax dividend amount
+  # Hard-coded; based on original CCL analysis for 2008-2012 period
   div.adult <- 377
 
-  # Estimate household marginal tax rate
-  nd$adults <- nd$hhsize - nd$minors
+  # #TO DO: Estimate household marginal tax rate
   nd$mrate <- 0.15
 
   # Calculate pre- and post-tax dividends
-  nd$div_pre <- round(div.adult * nd$adults + 0.5 * div.adult * pmin(2, nd$minors))
-  nd$div_post <- round(nd$div_pre * (1 - nd$mrate))
+  nd$div_pre <- round(div.adult * nd$na + 0.5 * div.adult * pmin(2, nd$nc))
+  #nd$div_post <- round(nd$div_pre * (1 - nd$mrate))
 
-  #------
+  nd$np <- nd$na + nd$na
+  nd$elec_ratio <- nd$cents_kwh / (nd$hinc / 1e3)
+  nd$gas_ratio <- nd$gasprice / (nd$hinc / 1e3)
 
-  # How does variation in income affect the result
-  # TO DO: THIS NEEDS TO REFLECT SPECIFIC INPUTS NOT INTEGRAL OVER ALL VALUES!!!
+  #----------------------
 
-  v <- c("elec", "gas")
-  m <- fitted_model0
-  i <- match(v, m$var.names)
-  g <- lapply(i, function(x) seq(from = min(m$var.levels[[x]]), to = max(m$var.levels[[x]]), length.out = 50))
-  names(g) <- v
-  x <- cbind(nd, expand.grid(g))
-  x$y <- predict.gbm(m, newdata = x, n.trees = m$n.trees)
+  # Core emissions
+  # Calculate 90% CI margin of error (MOE) This is calculated by estimating the
+  # standard deviation, assuming a Normal distribution with specified 25th and
+  # 75th percentiles (the IQR is approximately 1.35x the standard deviation)
 
-  f <- paste0("y ~ ", paste(v, collapse = " + "))
-  fit <- lm(formula = formula(f), data = x)
+  q <- predict(core_model, newdata = nd)
+  core <- q[,2]
+  stdev <- apply(q, 1, function(x) diff(x[c(1,3)])) / 1.35
 
-  # Create a character vector giving the equation expression to be evaluated using the slider variables as inputs
-  n <- prettyNum(signif(coef(fit), 4))
-  names(n)[1] <- "1"
-  eq <- gsub(" * 1", "", gsub(":", " * ", paste(sprintf("%s * %s", n, names(n)), collapse = " + ")), fixed = TRUE)
+  #----------------------
 
-  #------
+  # Gasoline weekly expenditure (median and 95th percentile)
+  gas <- signif(predict(gas_model, newdata = nd) * nd$gasprice / 52, digits = 2)
+  colnames(gas) <- c("gas", "gas_upr")
 
-  # Predict the slider preset values
+  # Electricity monthly expenditure (median and 95th percentile)
+  elec <- signif(predict(elec_model, newdata = nd) * nd$cents_kwh / 12, digits = 2)
+  colnames(elec) <- c("elec", "elec_upr")
 
-  #for (x in ls(pattern = "fitted_model")[-1]) {  # Not sure if ls() works within package environment
-  for (x in c("fitted_model1", "fitted_model2")) {
-    m <- get(x)
-    nd[[m$response.name]] <- round(predict.gbm(m, newdata = nd, n.trees = m$n.trees))
+  # Primary heating fuel monthly expenditure (median and 95th percentile)
+  predHeatModels <- function(d) {
+
+    if (d$hfuel[1] == "Natural gas") {
+      d$heat_ratio <- d$ngasprice / (d$hinc / 1e3)
+      out <- predict(ngas_model, newdata = d) * d$ngasprice
+      out <- cbind(out, d$Natural_gas_cie)
+    }
+
+    if (d$hfuel[1] == "LPG/Propane") {
+      d$heat_ratio <- d$lpgprice / (d$hinc / 1e3)
+      out <- predict(lpg_model, newdata = d) * d$lpgprice
+      out <- cbind(out, d$LPG_cie)
+    }
+
+    if (d$hfuel[1] == "Heating oil") {
+      d$heat_ratio <- d$hoilprice / (d$hinc / 1e3)
+      out <- predict(hoil_model, newdata = d) * d$hoilprice
+      out <- cbind(out, d$Heating_oil_cie)
+    }
+
+    if (d$hfuel[1] %in% c("Electricity", "Other or none")) {
+      out <- matrix(rep(0, 3 * nrow(d)), ncol = 3)
+    }
+
+    out <- cbind(d$id, out)
+    colnames(out) <- c("id", "heat", "heat_upr", "heat_cie")
+    out[,c("heat", "heat_upr")] <- signif(out[,c("heat", "heat_upr")] / 12, 2)
+    return(out)
+
   }
 
-  #------
+  heat <- by(nd, nd$hfuel, predHeatModels)
+  heat <- data.frame(do.call("rbind", heat))
+  heat <- heat[order(heat$id), -1]
 
-  # DEPRECATED
+  #----------------------
 
-  # pred <- setdiff(names(test), "y")
+  # Carbon price ($ per ton CO2)
+  carbon.price <- 15
 
-  # fit0 <- lm(y ~ ., data = test)
+  # Estimated 90% margin of error (in dollars, annual)
+  nd$moe <- round(1.645 * stdev * carbon.price)
 
-  # fit0 <- lm(y ~ poly(income, 1, raw = T) * poly(elec, 1, raw = T), data = test)
+  # Annual cost equation
+  nd$cost <- paste(
+    round(core * carbon.price, 2),
+    paste0("gas * ", signif(52 * nd$Gasoline_cie * carbon.price / 1e3, 4)),
+    paste0("elec * ", signif(12 * nd$Electricity_cie * carbon.price / 1e3, 4)),
+    paste0("heat * ", signif(12 * heat$heat_cie * carbon.price / 1e3, 4)), sep = " + ")
 
-  #fit <- lm(formula = formula(paste0("y ~ ", paste0("poly(", pred, ", degree = 3, raw = TRUE)"))), data = test)
+  # Return results matrix
+  psets <- cbind(gas, elec, heat)
+  psets[psets < 0] <- 0
+  result <- cbind(nd, psets)
+  result <- subset(result, select = c(div_pre, mrate, cost, moe, gas, elec, heat, gas_upr, elec_upr, heat_upr))
 
-  #fit2 <- as.stepfun(isoreg(x = test$income, y = test$y))
-
-  #library(MonoPoly)
-  #fit3 <- monpol(y ~income, data = test, degree = 5, monotone = "increasing")
-
-  # Check fit
-  # plot(test)
-  # lines(x = test$income, y = predict(fit0, data.frame(income = test$income)), col = 2)
-  # lines(x = test$income, y = predict(fit0, data.frame(income = test$income)), col = 3)
-
-  #-----
-
-  # Return results data frame
-
-  out <- subset(nd, select = c(div_pre, mrate, elec, gas))
-  out$cost <- eq
-  return(out)
+  return(result)
 
 }
+
+#----------------
+
+# INPUT FOR TESTING:
+#for (i in list.files("~/Documents/Projects/exampleR/data/", full.names = TRUE)) load(i)
+#require(quantreg)
+# nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = "2", rms = "7")
+# nd <- data.frame(zip = c("94062","80524"), na = c(2, 1), nc = c(2, 0), hinc = c(50e3, 300e3), hfuel = c("Electricity", "Natural gas"), veh = c("2", "1"), rms = c("7", "5"))
+# predictModel(nd)
