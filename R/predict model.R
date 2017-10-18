@@ -5,11 +5,6 @@
 #' @export
 #' @importFrom quantreg predict.rq
 #' @param input data passed on as \code{newdata} to \code{\link{predict.gbm}}
-#' @examples mydata <- data.frame(
-#'    X1=runif(3),
-#'    X2=2*runif(3)
-#' )
-#' predictModel(mydata)
 
 predictModel <- function(input) {
 

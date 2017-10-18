@@ -12,10 +12,3 @@ predictModel(input)
 \description{
 Simple model with multiple predictors
 }
-\examples{
-mydata <- data.frame(
-   X1=runif(3),
-   X2=2*runif(3)
-)
-predictModel(mydata)
-}
