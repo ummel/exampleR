@@ -65,7 +65,7 @@ predictModel <- function(input) {
     nd$hfuel[nd$hfuel == "Other or none"] <- "Natural gas"
   }
 
-  q <- predict(core_model, newdata = p)
+  q <- predict(core_model, newdata = nd)
   core <- q[,2]
   stdev <- apply(q, 1, function(x) diff(x[c(1,3)])) / 1.35
 
@@ -146,7 +146,7 @@ predictModel <- function(input) {
 # INPUT FOR TESTING:
 #for (i in list.files("~/Documents/Projects/exampleR/data/", full.names = TRUE)) load(i)
 #require(quantreg)
-# nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = "2", rms = "7")
-# nd <- data.frame(zip = c("94062","80524"), na = c(2, 1), nc = c(2, 0), hinc = c(50e3, 300e3), hfuel = c("Electricity", "Natural gas"), veh = c("2", "1"), rms = c("7", "5"))
-# nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = "2", rms = "7")
+# nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = "2", rms = "7", stringsAsFactors = FALSE)
+# nd <- data.frame(zip = c("94062","80524"), na = c(2, 1), nc = c(2, 0), hinc = c(50e3, 300e3), hfuel = c("Electricity", "Natural gas"), veh = c("2", "1"), rms = c("7", "5"), stringsAsFactors = FALSE)
+# nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = "2", rms = "7", stringsAsFactors = FALSE)
 # predictModel(nd)
