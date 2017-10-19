@@ -38,7 +38,7 @@ predictModel <- function(input) {
   div.adult <- 377
 
   # #TO DO: Estimate household marginal tax rate
-  nd$mrate <- 0.15
+  nd$mrate <- margRate(nd)
 
   # Calculate pre- and post-tax dividends
   nd$div_pre <- round(div.adult * nd$na + 0.5 * div.adult * pmin(2, nd$nc))
