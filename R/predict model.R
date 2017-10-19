@@ -8,11 +8,11 @@
 
 predictModel <- function(input) {
 
-  #input can either be csv file or data
+  # Input can either be csv file or data
   nd <- if (is.character(input) && file.exists(input)) {
-    read.csv(input)
+    read.csv(input, stringsAsFactors = FALSE)
   } else {
-    as.data.frame(input)
+    as.data.frame(input, stringsAsFactors = FALSE)
   }
 
   # Check that all necessary input variables are present
@@ -55,7 +55,17 @@ predictModel <- function(input) {
   # standard deviation, assuming a Normal distribution with specified 25th and
   # 75th percentiles (the IQR is approximately 1.35x the standard deviation)
 
-  q <- predict(core_model, newdata = nd)
+  # There were no 'Other or none' observations in the trimmed training dataset,
+  # so this replacement assures the core_model predict() function will not fail
+  # 'nd' object retains 'Other or none' so that hfuel logic further down still works
+
+  other.id <- which(nd$hfuel == "Other or none")
+  if (length(other.id) > 0) {
+    #nd$hfuel = as.character(nd$hfuel)
+    nd$hfuel[nd$hfuel == "Other or none"] <- "Natural gas"
+  }
+
+  q <- predict(core_model, newdata = p)
   core <- q[,2]
   stdev <- apply(q, 1, function(x) diff(x[c(1,3)])) / 1.35
 
@@ -90,7 +100,7 @@ predictModel <- function(input) {
       out <- cbind(out, d$Heating_oil_cie)
     }
 
-    if (d$hfuel[1] %in% c("Electricity", "Other or none")) {
+    if (d$hfuel[1] %in% c("Electricity")) {
       out <- matrix(rep(0, 3 * nrow(d)), ncol = 3)
     }
 
@@ -104,6 +114,7 @@ predictModel <- function(input) {
   heat <- by(nd, nd$hfuel, predHeatModels)
   heat <- data.frame(do.call("rbind", heat))
   heat <- heat[order(heat$id), -1]
+  heat[other.id,] <- 0  # Set heat-related variables to zero if original hfuel='Other or none'
 
   #----------------------
 
@@ -137,4 +148,5 @@ predictModel <- function(input) {
 #require(quantreg)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = "2", rms = "7")
 # nd <- data.frame(zip = c("94062","80524"), na = c(2, 1), nc = c(2, 0), hinc = c(50e3, 300e3), hfuel = c("Electricity", "Natural gas"), veh = c("2", "1"), rms = c("7", "5"))
+# nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = "2", rms = "7")
 # predictModel(nd)
