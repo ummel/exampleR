@@ -4,6 +4,7 @@
 #'
 #' @export
 #' @importFrom quantreg predict.rq
+#' @importFrom utils read.csv
 #' @param input data passed on as \code{newdata} to \code{\link{predict.gbm}}
 
 predictModel <- function(input) {
@@ -65,19 +66,19 @@ predictModel <- function(input) {
     nd$hfuel[nd$hfuel == "Other or none"] <- "Natural gas"
   }
 
-  q <- predict(core_model, newdata = nd)
+  q <- predict.rq(core_model, newdata = nd)
   core <- q[,2]
   stdev <- apply(q, 1, function(x) diff(x[c(1,3)])) / 1.35
 
   #----------------------
 
   # Gasoline weekly expenditure (median and 95th percentile)
-  gas <- signif(predict(gas_model, newdata = nd) * nd$gasprice / 52, digits = 2)
+  gas <- signif(predict.rq(gas_model, newdata = nd) * nd$gasprice / 52, digits = 2)
   colnames(gas) <- c("gas", "gas_upr")
   gas[which(nd$veh == "0"), "gas"] <- 0  # Set predicted gasoline expenditure to zero if Vehicles = 0 (user free to increase, if desired)
 
   # Electricity monthly expenditure (median and 95th percentile)
-  elec <- signif(predict(elec_model, newdata = nd) * nd$cents_kwh / 12, digits = 2)
+  elec <- signif(predict.rq(elec_model, newdata = nd) * nd$cents_kwh / 12, digits = 2)
   colnames(elec) <- c("elec", "elec_upr")
 
   # Primary heating fuel monthly expenditure (median and 95th percentile)
@@ -85,19 +86,19 @@ predictModel <- function(input) {
 
     if (d$hfuel[1] == "Natural gas") {
       d$heat_ratio <- d$ngasprice / (d$hinc / 1e3)
-      out <- predict(ngas_model, newdata = d) * d$ngasprice
+      out <- predict.rq(ngas_model, newdata = d) * d$ngasprice
       out <- cbind(out, d$Natural_gas_cie)
     }
 
     if (d$hfuel[1] == "LPG/Propane") {
       d$heat_ratio <- d$lpgprice / (d$hinc / 1e3)
-      out <- predict(lpg_model, newdata = d) * d$lpgprice
+      out <- predict.rq(lpg_model, newdata = d) * d$lpgprice
       out <- cbind(out, d$LPG_cie)
     }
 
     if (d$hfuel[1] == "Heating oil") {
       d$heat_ratio <- d$hoilprice / (d$hinc / 1e3)
-      out <- predict(hoil_model, newdata = d) * d$hoilprice
+      out <- predict.rq(hoil_model, newdata = d) * d$hoilprice
       out <- cbind(out, d$Heating_oil_cie)
     }
 
