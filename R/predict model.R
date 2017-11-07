@@ -74,6 +74,7 @@ predictModel <- function(input) {
   # Gasoline weekly expenditure (median and 95th percentile)
   gas <- signif(predict(gas_model, newdata = nd) * nd$gasprice / 52, digits = 2)
   colnames(gas) <- c("gas", "gas_upr")
+  gas[nd$veh == "0", "gas"] <- 0  # Set predicted gasoline expenditure to zero if Vehicles = 0 (user free to increase, if desired)
 
   # Electricity monthly expenditure (median and 95th percentile)
   elec <- signif(predict(elec_model, newdata = nd) * nd$cents_kwh / 12, digits = 2)
