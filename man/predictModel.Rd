@@ -2,13 +2,10 @@
 % Please edit documentation in R/predict model.R
 \name{predictModel}
 \alias{predictModel}
-\title{Predict a simple GBM model}
+\title{Use prediction models to convert user-provided inputs into calculator return values}
 \usage{
 predictModel(input)
 }
-\arguments{
-\item{input}{data passed on as \code{newdata} to \code{\link{predict.gbm}}}
-}
 \description{
-Simple model with multiple predictors
+Use prediction models to convert user-provided inputs into calculator return values
 }

@@ -1,11 +1,8 @@
-#' Predict a simple GBM model
-#'
-#' Simple model with multiple predictors
+#' Use prediction models to convert user-provided inputs into calculator return values
 #'
 #' @export
 #' @importFrom quantreg predict.rq
-#' @importFrom utils read.csv
-#' @param input data passed on as \code{newdata} to \code{\link{predict.gbm}}
+#' @importFrom utils read.csv}
 
 predictModel <- function(input) {
 
