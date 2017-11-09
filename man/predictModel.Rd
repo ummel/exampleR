@@ -2,10 +2,10 @@
 % Please edit documentation in R/predict model.R
 \name{predictModel}
 \alias{predictModel}
-\title{Use prediction models to convert user-provided inputs into calculator return values}
+\title{Use predict.rqion models to convert user-provided inputs into calculator return values}
 \usage{
 predictModel(input)
 }
 \description{
-Use prediction models to convert user-provided inputs into calculator return values
+Use predict.rqion models to convert user-provided inputs into calculator return values
 }
