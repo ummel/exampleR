@@ -2,7 +2,7 @@
 #'
 #' @export
 #' @importFrom quantreg predict.rq
-#' @importFrom utils read.csv}
+#' @importFrom utils read.csv
 
 predictModel <- function(input) {
 
