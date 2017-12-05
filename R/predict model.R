@@ -86,7 +86,7 @@ predictModel <- function(input) {
   
   donotknow.id <- which(nd$hfuel == "Do not know")
   if (length(donotknow.id) > 0) {
-    pred <- predict(hfuel_model, newdata = nd[donotknow.id,])
+    pred <- stats::predict.glm(hfuel_model, newdata = nd[donotknow.id,])
     # Convert from original scale to class probability (probability of Natural gas)
     # https://stats.stackexchange.com/questions/164648/output-of-logistic-regression-prediction
     prob <- exp(pred) / (1 + exp(pred))
@@ -94,8 +94,8 @@ predictModel <- function(input) {
   }
 
   # Note exp() used to convert log prediction value
-  core <- as.numeric(exp(predict(core_model_gam, newdata = nd)))
-  q <- exp(predict(core_model_rq, newdata = nd))
+  core <- as.numeric(exp(mgcv::predict.gam(core_model_gam, newdata = nd)))
+  q <- exp(quantreg::predict.rq(core_model_rq, newdata = nd))
   stdev <- (q[,2] - q[,1]) / 1.35
   
   #----------------------
@@ -104,14 +104,14 @@ predictModel <- function(input) {
   # Note that all dollar values are adjusted to reflect current price levels ("_adjust" variables)
   
   # Gasoline weekly expenditure (mean and 97.5th percentile)
-  gas <- cbind(predict(gas_model_gam, newdata = nd), predict(gas_model_rq, newdata = nd))
+  gas <- cbind(mgcv::predict.gam(gas_model_gam, newdata = nd), quantreg::predict.rq(gas_model_rq, newdata = nd))
   gas <- signif(gas * nd$gas_adjust * nd$gasprice / 52, digits = 2)
   #gas <- signif(predict(gas_model, newdata = nd) * nd$gas_adjust * nd$gasprice / 52, digits = 2)
   colnames(gas) <- c("gas", "gas_upr")
   gas[which(nd$veh == "0"), "gas"] <- 0  # Set predicted gasoline expenditure to zero if Vehicles = 0 (user free to increase, if desired)
 
   # Electricity monthly expenditure (mean and 97.5th percentile)
-  elec <- cbind(predict(elec_model_gam, newdata = nd), predict(elec_model_rq, newdata = nd))
+  elec <- cbind(mgcv::predict.gam(elec_model_gam, newdata = nd), quantreg::predict.rq(elec_model_rq, newdata = nd))
   elec <- signif(gas * nd$elec_adjust * nd$cents_kwh / 12, digits = 2)
   #elec <- signif(predict(elec_model, newdata = nd) * nd$elec_adjust * nd$cents_kwh / 12, digits = 2)
   colnames(elec) <- c("elec", "elec_upr")
@@ -123,22 +123,19 @@ predictModel <- function(input) {
 
     if (d$hfuel[1] == "Natural gas") {
       d$heat_ratio <- d$ngasprice * d$ngas_adjust / (d$hinc / 1e3)
-      #out <- predict(ngas_model, newdata = d) * d$ngasprice * d$ngas_adjust
-      out <- cbind(predict(ngas_model_gam, newdata = d), predict(ngas_model_rq, newdata = d)) * d$ngasprice * d$ngas_adjust
+      out <- cbind(mgcv::predict.gam(ngas_model_gam, newdata = d), quantreg::predict.rq(ngas_model_rq, newdata = d)) * d$ngasprice * d$ngas_adjust
       out <- cbind(out, d$Natural_gas_cie / d$ngas_adjust)
     }
 
     if (d$hfuel[1] == "LPG/Propane") {
       d$heat_ratio <- d$lpgprice * d$lpg_adjust / (d$hinc / 1e3)
-      #out <- predict(lpg_model, newdata = d) * d$lpgprice * d$lpg_adjust
-      out <- cbind(predict(lpg_model_gam, newdata = d), predict(lpg_model_rq, newdata = d)) * d$lpgprice * d$lpg_adjust
+      out <- cbind(mgcv::predict.gam(lpg_model_gam, newdata = d), quantreg::predict.rq(lpg_model_rq, newdata = d)) * d$lpgprice * d$lpg_adjust
       out <- cbind(out, d$LPG_cie / d$lpg_adjust)
     }
 
     if (d$hfuel[1] == "Heating oil") {
       d$heat_ratio <- d$hoilprice * d$hoil_adjust / (d$hinc / 1e3)
-      #out <- predict(hoil_model, newdata = d) * d$hoilprice * d$hoil_adjust 
-      out <- cbind(predict(hoil_model_gam, newdata = d), predict(hoil_model_rq, newdata = d)) * d$hoilprice * d$hoil_adjust 
+      out <- cbind(mgcv::predict.gam(hoil_model_gam, newdata = d), quantreg::predict.rq(hoil_model_rq, newdata = d)) * d$hoilprice * d$hoil_adjust 
       out <- cbind(out, d$Heating_oil_cie / d$hoil_adjust)
     }
     
@@ -205,5 +202,5 @@ predictModel <- function(input) {
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = 2, htype = "Other", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = c("94062","80524"), na = c(2, 1), nc = c(2, 0), hinc = c(50e3, 300e3), hfuel = c("Do not know", "Natural gas"), veh = c(2, 1), htype = c("Stand-alone house", "Apartment building"), stringsAsFactors = FALSE)
-# 
+#
 # predictModel(nd)
