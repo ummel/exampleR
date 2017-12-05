@@ -8,5 +8,7 @@ Description: Back-end calculations provided to CCL online calculator tool.
 License: file LICENSE
 Encoding: UTF-8
 LazyData: false
-Imports: quantreg
+Imports: 
+    quantreg,
+    mgcv
 RoxygenNote: 6.0.1

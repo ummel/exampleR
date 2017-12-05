@@ -3,5 +3,6 @@
 export(inputSummary)
 export(margRate)
 export(predictModel)
+importFrom(mgcv,predict.gam)
 importFrom(quantreg,predict.rq)
 importFrom(utils,read.csv)
