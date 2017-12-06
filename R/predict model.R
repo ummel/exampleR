@@ -96,7 +96,11 @@ predictModel <- function(input) {
   # Note exp() used to convert log prediction value
   core <- as.numeric(exp(mgcv::predict.gam(core_model_gam, newdata = nd)))
   q <- exp(quantreg::predict.rq(core_model_rq, newdata = nd))
-  stdev <- (q[,2] - q[,1]) / 1.35
+  if (nrow(nd) == 1) {
+    stdev <- (q[2] - q[1]) / 1.35
+  } else {
+    stdev <- (q[,2] - q[,1]) / 1.35
+  }
   
   #----------------------
 

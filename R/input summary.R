@@ -1,6 +1,6 @@
-#' Predict a simple GBM model
+#' Call summary of input variables
 #'
-#' Simple model with multiple predictors
+#' Provides input variable information useful to front-end developer
 #'
 #' @export
 

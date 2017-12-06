@@ -2,10 +2,10 @@
 % Please edit documentation in R/input summary.R
 \name{inputSummary}
 \alias{inputSummary}
-\title{Predict a simple GBM model}
+\title{Call summary of input variables}
 \usage{
 inputSummary()
 }
 \description{
-Simple model with multiple predictors
+Provides input variable information useful to front-end developer
 }
