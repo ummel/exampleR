@@ -158,7 +158,6 @@ predictModel <- function(input) {
   heat <- by(nd, nd$hfuel, predHeatModels)
   heat <- data.frame(do.call("rbind", heat))
   heat <- heat[order(heat$id), -1]
-  heat[other.id,] <- 0  # Set heat-related variables to zero if original hfuel='Other or none'
 
   #----------------------
 
@@ -185,6 +184,13 @@ predictModel <- function(input) {
     heat$heat_upr[donotknow.id] <- 0
   }
   
+  # For users that report heating fuel as "Other or none", replace the 'heat' component
+  #  of cost equation with ZERO value and set heat-related presets to zero
+  if (length(other.id) > 0) {
+    for (i in other.id) nd$cost[i] <- sub("heat", 0, nd$cost[i], fixed = TRUE)
+  }
+  heat[other.id,] <- 0
+  
   # Return results matrix
   psets <- cbind(gas, elec, heat)
   psets[psets < 0] <- 0
@@ -205,6 +211,6 @@ predictModel <- function(input) {
 # 
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = 2, htype = "Other", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
-# nd <- data.frame(zip = c("94062","80524"), na = c(2, 1), nc = c(2, 0), hinc = c(50e3, 300e3), hfuel = c("Do not know", "Natural gas"), veh = c(2, 1), htype = c("Stand-alone house", "Apartment building"), stringsAsFactors = FALSE)
+# nd <- data.frame(zip = c("94062","80524","70032"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 1, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
 #
 # predictModel(nd)
