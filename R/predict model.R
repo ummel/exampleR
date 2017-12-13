@@ -50,7 +50,7 @@ predictModel <- function(input) {
   # Calculate pre-tax dividend amount, adjusted to current dollars
   nd$div_pre <- round(div.adult * nd$na + 0.5 * div.adult * pmin(2, nd$nc))
 
-  nd$np <- nd$na + nd$na
+  nd$np <- nd$na + nd$nc
   
   # Fuel-price-to-income ratios used in model fitting
   # Note that fuel prices are adjusted from 2012 to current price levels
@@ -104,42 +104,42 @@ predictModel <- function(input) {
   
   #----------------------
 
-  # Predict typical (mean) and upper-bound (97.5th percentile) expenditure values used to set the "page 2" slider preset and maximum value
+  # Predict typical (mean) and upper-bound (approximately 97.5th percentile) expenditure values used to set the "page 2" slider preset and maximum value
   # Note that all dollar values are adjusted to reflect current price levels ("_adjust" variables)
   
-  # Gasoline weekly expenditure (mean and 97.5th percentile)
-  gas <- cbind(mgcv::predict.gam(gas_model_gam, newdata = nd), quantreg::predict.rq(gas_model_rq, newdata = nd))
-  gas <- signif(gas * nd$gas_adjust * nd$gasprice / 52, digits = 2)
+  # Gasoline monthly expenditure (mean and approximately 97.5th percentile)
+  gas <- cbind(mgcv::predict.gam(gas_model_gam, newdata = nd), 1.1 * quantreg::predict.rq(gas_model_rq, newdata = nd))
+  gas <- signif(gas * nd$gas_adjust * nd$gasprice / 12, digits = 2)
   #gas <- signif(predict(gas_model, newdata = nd) * nd$gas_adjust * nd$gasprice / 52, digits = 2)
   colnames(gas) <- c("gas", "gas_upr")
-  gas[which(nd$veh == 1), "gas"] <- 0  # Set predicted gasoline expenditure to zero if Vehicles = 0 (which is actually "1" after +1 to 'veh' variable above
+  gas[which(nd$veh == 1), "gas"] <- 0  # Set predicted gasoline expenditure to zero if user inputs zero vehicles (which is actually "1" in nd$veh after +1 to original value (above)
 
-  # Electricity monthly expenditure (mean and 97.5th percentile)
-  elec <- cbind(mgcv::predict.gam(elec_model_gam, newdata = nd), quantreg::predict.rq(elec_model_rq, newdata = nd))
-  elec <- signif(gas * nd$elec_adjust * nd$cents_kwh / 12, digits = 2)
+  # Electricity monthly expenditure (mean and approximately 97.5th percentile)
+  elec <- cbind(mgcv::predict.gam(elec_model_gam, newdata = nd), 1.1 * quantreg::predict.rq(elec_model_rq, newdata = nd))
+  elec <- signif(elec * nd$elec_adjust * nd$cents_kwh / 12, digits = 2)
   #elec <- signif(predict(elec_model, newdata = nd) * nd$elec_adjust * nd$cents_kwh / 12, digits = 2)
   colnames(elec) <- c("elec", "elec_upr")
 
-  # Primary heating fuel monthly expenditure (median and 95th percentile)
+  # Primary heating fuel monthly expenditure (median and approximately 95th percentile)
   # Note that expenditure values are adjusted to current price levels AND
   #  CIE values are adjusted to reflect change in fuel prices since 2012 (if price went up, CIE goes down)
   predHeatModels <- function(d) {
 
     if (d$hfuel[1] == "Natural gas") {
       d$heat_ratio <- d$ngasprice * d$ngas_adjust / (d$hinc / 1e3)
-      out <- cbind(mgcv::predict.gam(ngas_model_gam, newdata = d), quantreg::predict.rq(ngas_model_rq, newdata = d)) * d$ngasprice * d$ngas_adjust
+      out <- cbind(mgcv::predict.gam(ngas_model_gam, newdata = d), 1.1 * quantreg::predict.rq(ngas_model_rq, newdata = d)) * d$ngasprice * d$ngas_adjust
       out <- cbind(out, d$Natural_gas_cie / d$ngas_adjust)
     }
 
     if (d$hfuel[1] == "LPG/Propane") {
       d$heat_ratio <- d$lpgprice * d$lpg_adjust / (d$hinc / 1e3)
-      out <- cbind(mgcv::predict.gam(lpg_model_gam, newdata = d), quantreg::predict.rq(lpg_model_rq, newdata = d)) * d$lpgprice * d$lpg_adjust
+      out <- cbind(mgcv::predict.gam(lpg_model_gam, newdata = d), 1.1 * quantreg::predict.rq(lpg_model_rq, newdata = d)) * d$lpgprice * d$lpg_adjust
       out <- cbind(out, d$LPG_cie / d$lpg_adjust)
     }
 
     if (d$hfuel[1] == "Heating oil") {
       d$heat_ratio <- d$hoilprice * d$hoil_adjust / (d$hinc / 1e3)
-      out <- cbind(mgcv::predict.gam(hoil_model_gam, newdata = d), quantreg::predict.rq(hoil_model_rq, newdata = d)) * d$hoilprice * d$hoil_adjust 
+      out <- cbind(mgcv::predict.gam(hoil_model_gam, newdata = d), 1.1 * quantreg::predict.rq(hoil_model_rq, newdata = d)) * d$hoilprice * d$hoil_adjust 
       out <- cbind(out, d$Heating_oil_cie / d$hoil_adjust)
     }
     
@@ -172,9 +172,10 @@ predictModel <- function(input) {
   # Annual cost equation
   nd$cost <- paste(
     round(core * carbon.price, 2),
-    paste0("gas * ", signif(52 * nd$Gasoline_cie / nd$gas_adjust * carbon.price / 1e3, 4)),  # Input is weekly expenditure
-    paste0("elec * ", signif(12 * nd$Electricity_cie / nd$elec_adjust * carbon.price / 1e3, 4)),  # Input is monthly expenditure
-    paste0("heat * ", signif(12 * heat$heat_cie * carbon.price / 1e3, 4)), sep = " + ")  # Input is monthly expenditure
+    paste0("gas * ", signif(12 * nd$Gasoline_cie / nd$gas_adjust * (carbon.price / 1e3), 4)),  # Input is monthly expenditure
+    paste0("elec * ", signif(12 * nd$Electricity_cie / nd$elec_adjust * (carbon.price / 1e3), 4)),  # Input is monthly expenditure
+    paste0("heat * ", signif(12 * heat$heat_cie * (carbon.price / 1e3), 4)), 
+    sep = " + ")  # Input is monthly expenditure
 
   # For users that did not know their heating fuel, replace the 'heat' component
   #  of cost equation with the default expenditure value and set 'heat' and 'heat_upr' variables to zero
