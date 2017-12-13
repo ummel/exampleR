@@ -112,7 +112,7 @@ predictModel <- function(input) {
   gas <- signif(gas * nd$gas_adjust * nd$gasprice / 52, digits = 2)
   #gas <- signif(predict(gas_model, newdata = nd) * nd$gas_adjust * nd$gasprice / 52, digits = 2)
   colnames(gas) <- c("gas", "gas_upr")
-  gas[which(nd$veh == "0"), "gas"] <- 0  # Set predicted gasoline expenditure to zero if Vehicles = 0 (user free to increase, if desired)
+  gas[which(nd$veh == 1), "gas"] <- 0  # Set predicted gasoline expenditure to zero if Vehicles = 0 (which is actually "1" after +1 to 'veh' variable above
 
   # Electricity monthly expenditure (mean and 97.5th percentile)
   elec <- cbind(mgcv::predict.gam(elec_model_gam, newdata = nd), quantreg::predict.rq(elec_model_rq, newdata = nd))
@@ -211,6 +211,6 @@ predictModel <- function(input) {
 # 
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = 2, htype = "Other", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
-# nd <- data.frame(zip = c("94062","80524","70032"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 1, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
+# nd <- data.frame(zip = c("94062","80524","70032"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
 #
 # predictModel(nd)
