@@ -1,7 +1,7 @@
 #' Estimate household marginal tax rate
 #'
 #' Approximaton of household marginal federal income tax rate using tax year
-#' 2017 values. Assumes gross household income is equivalent to AGI and applies
+#' 2017 statutory values. Assumes gross household income is equivalent to AGI and applies
 #' standard deduction in all cases. Households with >2 adults are treated as
 #' married with all adults >2 counted as dependents.
 #'

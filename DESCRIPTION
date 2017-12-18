@@ -1,7 +1,7 @@
 Package: exampleR
 Type: Package
 Title: Back-end to CCL calculator
-Version: 0.1.0
+Version: 1.0
 Author: Kevin Ummel
 Maintainer: Kevin Ummel <kevinummel@gmail.com>
 Description: Back-end calculations provided to CCL online calculator tool.
