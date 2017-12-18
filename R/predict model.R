@@ -297,3 +297,7 @@ predictModel <- function(input) {
 # nd <- data.frame(zip = c("94062","80524","70032"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
 #
 # predictModel(nd)
+#
+# To convert ?predictModel documentation to stand-alone HTML
+#library(tools)
+#Rd2HTML("man/predictModel.Rd", "Documentation.html")

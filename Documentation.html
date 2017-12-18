@@ -1,0 +1,126 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>R: Generate results used by CCL online calculator</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="R.css" />
+</head><body>
+
+<table width="100%" summary="page for predictModel"><tr><td>predictModel</td><td style="text-align: right;">R Documentation</td></tr></table>
+
+<h2>Generate results used by CCL online calculator</h2>
+
+<h3>Description</h3>
+
+<p>CCL’s <a href="https://citizensclimatelobby.org/household-impact-study/">Household Impact Study</a> estimates the direct financial effect of a carbon tax and dividend policy for a large, representative sample of U.S. households. Techniques, data, and assumptions are described in detail in the <a href="https://11bup83sxdss1xze1i3lpol4-wpengine.netdna-ssl.com/wp-content/uploads/2016/05/Ummel-Impact-of-CCL-CFD-Policy-v1_4.pdf">associated working paper</a>.<br /><br />
+The online calculator tool uses the study’s results to estimate a household’s additional costs under the policy (due to higher prices for goods and services), depending on a limited set of household characteristics (income, number of vehicles, etc.). It also calculates the expected dividend, which is a function of the household’s number of adults, number of minors, and expected federal marginal tax rate. The difference between the dividend and additional cost is the &quot;net&quot; or overall financial impact – positive if a household is likely to “come out ahead” under CF&amp;D.<br /><br />
+For ease of use, a small and generally easy-to-recall set of user inputs are solicited. The calculator reports the expected average outcome for a household. The actual outcome for any specific household could vary from the average. For example, if a user household is a below-average consumer of carbon-intensive goods like air travel and meat, the calculator will understate the net impact (and vice-versa). Developing a precise estimate for every household would require many more questions and accurate recall. We have opted for simplicity over precision.<br /><br />
+Uncertainty surrounding a household’s net impact is summarized by the “margin of error” (MOE). If the calculator reports a net benefit of $100, then households with the provided inputs can expect, on average, to benefit by $100. If the associated MOE is $200, then we expect 90% of households with the provided inputs to experience an actual net impact somewhere between -$100 and $300. Where, exactly, a household falls in that range depends on behaviors not captured explicitly by the calculator (e.g. air travel or meat consumption).<br /><br />
+The <code>predictModel()</code> function described here translates user-provided household characteristics into results displayed on the online calculator application. The function uses a limited set of user characteristics (see 'Arguments' below). The input data format is based on the OpenCPU <a href="https://www.opencpu.org/posts/scoring-engine/">'tvscore' example</a>. See 'Details' section below for technical details.<br /><br />
+The complete 'exampleR' package and source code is available at: <a href="https://github.com/ummel/exampleR">https://github.com/ummel/exampleR</a>
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+predictModel(input)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>input</code></td>
+<td>
+<p>A text string or .csv file passed via <a href="https://www.opencpu.org/api.html">OpenCPU API</a> (i.e. cURL POST) or a local R data frame (i.e. for debugging). In either case, <code>input</code> should contain the user-provided variables below. Calling <code>inputSummary()</code> or viewing the <code>input_summary</code> data object provided with package will provide the data types and allowable values for each of the variables.
+</p>
+
+<ul>
+<li><p>zip: 5-digit zip code
+</p>
+</li>
+<li><p>na: number of adults in household
+</p>
+</li>
+<li><p>nc: number of minors in household
+</p>
+</li>
+<li><p>hinc: household income 
+</p>
+</li>
+<li><p>hfuel: household primary heating fuel
+</p>
+</li>
+<li><p>veh: number of vehicles owned by household
+</p>
+</li>
+<li><p>htype: dwelling type
+</p>
+</li></ul>
+</td></tr>
+</table>
+
+
+<h3>Details</h3>
+
+<p>Household-level results from the Household Impact Study were selected for the year 2012, resulting in a total sample of just over 1 million households. Results for each household were processed to determine the expected additional financial cost (under the CF&amp;D policy) associated with &quot;indirect&quot; emissions and those stemming from consumption of gasoline, electricity, and the household's primary heating fuel. A series of statistical models were fit to the household sample to determine the relationship between a limited set of household characteristics and the cost components. A wide variety of household characteristics were considered for inclusion in the models; the subset ultimatey selected are both easy for users to accurately recall and demonstrate a good ability to (collectively) predict a household's expected additional cost.<br /><br />
+The fitted models are capable of translating household characteristics into expected (average) additional cost (generalized additive models with smoothing terms) as well as conditional quantiles (quantile regression) for the purposes of uncertainty estimation. When estimating emissions/cost associated with a households indirect emissions component, <code>predictModels()</code> uses a GAM model to predict the average cost and quantile models to predict the conditional 25th and 75th percentiles. The latter are used to estimate the uncertainty around the expected value, assuming a Normal distribution.<br /><br />
+In the case of emissons associated with gasoline and utilities, <code>predictModel()</code> returns the expected (average) monthly expenditure value and a &quot;cost formula&quot; that can translate monthly expenditures into total annual additional cost (including cost associated with indirect emissions). This feature allows users of the calculator to adjust the &quot;default&quot; average expenditure values to reflect their specific situation, resulting in a more accurate overall estimate of the additonal cost for that household.<br /><br />
+In order to account for the fact that the data used to fit the statistical models is from 2012, <code>predictModel()</code> includes state-level, fuel-specific price adjustment factors to inflate or deflate (as appropriate) user-provided expenditure and income values to current price levels. This ensures that inflation and changes in fuel prices over time do not unduly affect the results. No analogous adjustment is made for changes to electricity grid carbon-intensity over time.<br /><br />
+A fixed carbon price of $15 per ton CO2 is assumed. Per the assumptions and caveats in the Household Impact Study working paper, the household results reflect the &quot;overnight&quot; (i.e. short-term) direct financial impact of the CF&amp;D proposal, ignoring dynamic economic effects and changes in employment, preferences, or technologies.<br /><br />
+The expected post-tax dividend for a given household is determined by the &quot;div_pre&quot; and &quot;mrate&quot; values returned by <code>predictModel()</code>. The former is simply a function of the number of adults and children in the household and the &quot;full-share&quot; dividend value computed in the original Household Impact Study ($377). The latter is estimated via <code>margRate</code>.<br /><br />
+Validity and performance of <code>predictModel()</code> was tested by passing a random sample of the original Household Impact Study household-level results to the function and comparing the model-generated results to those in the original data. This quality-control test indicates that the predictive <i>R^2</i> value (<a href="https://en.wikipedia.org/wiki/Coefficient_of_determination">coefficient of determination</a>) is 0.55 in the event that a user relies on the model-generated gasoline and utility expenditure values. Model skill improves to a <i>R^2</i> value of 0.73 when users provide their own (accurate) expenditure values. The average absolute error in monthly cost for these two cases is $12.80 and $9.50, respectively.
+Those interested in greater detail are asked to review the annotated public source code for the <code>predictModel()</code> function <a href="https://github.com/ummel/exampleR/tree/master/R">on GitHub</a>.
+</p>
+
+
+<h3>Value</h3>
+
+<p>Function returns a data frame with one row of outputs for each row in <code>input</code>. The output variables are:
+</p>
+
+<ul>
+<li><p>div_pre: household pre-tax annual dividend
+</p>
+</li>
+<li><p>mrate: estimated marginal federal tax rate (see <code>margRate</code>)
+</p>
+</li>
+<li><p>cost: character string giving formula that (when evaluated) returns annual policy cost given monthly average expenditure inputs for gasoline (gas), electricity (elec), and heating fuel (heat) 
+</p>
+</li>
+<li><p>moe: estimated margin of error for the annual policy cost
+</p>
+</li>
+<li><p>gas: predicted average monthly gasoline expenditure for household (used as slider preset in online calculator)
+</p>
+</li>
+<li><p>elec: predicted average monthly electricity expenditure for household (used as slider preset in online calculator)
+</p>
+</li>
+<li><p>heat: predicted average monthly primary heating fuel expenditure for household (used as slider preset in online calculator; zero if not applicable)
+</p>
+</li>
+<li><p>gas_upr: predicted maximum feasible monthly gasoline expenditure for household (used as slider max value in online calculator)
+</p>
+</li>
+<li><p>elec_upr: predicted maximum feasible monthly electricity expenditure for household (used as slider max value in online calculator)
+</p>
+</li>
+<li><p>heat_upr: predicted maximum feasible monthly primary heating fuel expenditure for household (used as slider max value in online calculator; zero if not applicable)
+</p>
+</li></ul>
+
+
+
+<h3>Example applications</h3>
+
+<p>The CCL calculator tool invokes <code>predictModel()</code> remotely via cURL POST calls to OpenCPU. For example:<br /><br />
+<code>curl https://ummel.ocpu.io/exampleR/R/predictModel/json -H "Content-Type: application/json" -d '{"input" : [ {"zip":"80524", "na":2, "nc":2, "hinc":50000, "hfuel":"Natural gas", "veh":2, "htype":"Stand-alone house"} ]}'</code><br /><br />
+Or <code>predictModel()</code> can be called locally within R:<br /><br />
+<code>nd &lt;- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = 2, htype = "Other")</code><br />
+<code>predictModel(nd)</code><br /><br />
+A front-end developer can view input parameters details by calling:<br /><br />
+<code>curl https://ummel.ocpu.io/exampleR/R/inputSummary/json -H "Content-Type: application/json" -d '{}'</code>
+</p>
+
+
+</body></html>
