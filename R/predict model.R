@@ -87,8 +87,8 @@ predictModel <- function(input) {
   # Assign geographic variables to 'nd' using zip code provided
   # If statement used to allow testing with the original dataset (which contains spatial variables but not zip code)
   if (!test) {
-    nd <- merge(nd, zip_lookup, sort = FALSE)
-    if (nrow(nd) == 0) stop("Zip code not found.")
+    nd <- merge(nd, zip_lookup, sort = FALSE, all.x = TRUE)
+    if (any(is.na(nd$state))) stop("Zip code not found.")
   }
   
   # Assign price adjustment factors based on assigned state
@@ -294,7 +294,7 @@ predictModel <- function(input) {
 # 
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Electricity", veh = 2, htype = "Other", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
-# nd <- data.frame(zip = c("94062","80524","99501"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
+# nd <- data.frame(zip = c("94062","49685","99501"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
 #
 # predictModel(nd)
 #
