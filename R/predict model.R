@@ -88,6 +88,7 @@ predictModel <- function(input) {
   # If statement used to allow testing with the original dataset (which contains spatial variables but not zip code)
   if (!test) {
     nd <- merge(nd, zip_lookup, sort = FALSE)
+    if (nrow(nd) == 0) stop("Zip code not found.")
   }
   
   # Assign price adjustment factors based on assigned state
