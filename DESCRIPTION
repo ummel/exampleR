@@ -1,7 +1,7 @@
 Package: exampleR
 Type: Package
 Title: Back-end to CCL calculator
-Version: 1.0
+Version: 2.0
 Author: Kevin Ummel
 Maintainer: Kevin Ummel <kevinummel@gmail.com>
 Description: Back-end calculations provided to CCL online calculator tool.
@@ -11,4 +11,4 @@ LazyData: false
 Imports: 
     quantreg,
     mgcv
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1

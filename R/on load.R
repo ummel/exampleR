@@ -26,5 +26,8 @@
   utils::data(price_adjustment, package = pkg, envir = parent.env(environment()))
   utils::data(zip_lookup, package = pkg, envir = parent.env(environment()))
   utils::data(input_summary, package = pkg, envir = parent.env(environment()))
-
+  
+  # Added in version 2 (Aug 2019)
+  utils::data(finval_model_gam, package = pkg, envir = parent.env(environment()))
+  
 }
