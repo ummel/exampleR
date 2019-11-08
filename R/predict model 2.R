@@ -265,7 +265,7 @@ predictModel2 <- function(input) {
   #----------------------
   
   # TEST:
-  # Estimate household capital income
+  # Estimate household capital accounts total
   nd$finval <- as.numeric(pmax(0, mgcv::predict.gam(finval_model_gam, newdata = nd)))
   
   # Calculate household tax burden associated with exposure to capital income
@@ -310,6 +310,7 @@ predictModel2 <- function(input) {
   # ESTIMATE INDIRECT ("core") emissions and associated standard deviation, assuming Normal distribution
   # Note exp() used to convert log prediction value
   core <- as.numeric(exp(mgcv::predict.gam(core_model_gam, newdata = nd)))
+  core <- pmax(core, 4.6)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
   
   # TURNED OFF June 22, 2019 with requested revisions, as uncertainty not used by calculator and not calculated for 'captax' tax burden component
   # q <- exp(quantreg::predict.rq(core_model_rq, newdata = nd))
@@ -327,12 +328,14 @@ predictModel2 <- function(input) {
   
   # Gasoline monthly expenditure (mean and approximately 97.5th percentile)
   gas <- cbind(mgcv::predict.gam(gas_model_gam, newdata = nd), 1.1 * quantreg::predict.rq(gas_model_rq, newdata = nd))
+  gas <- pmax(gas, 0)  # ADDED 11/08/19 to ensure predicted value is not less than zero
   gas <- signif(gas * nd$gasprice * nd$gas_adjust * dir.adj / 12, digits = 2)
   colnames(gas) <- c("gas", "gas_upr")
   gas[which(nd$veh == 1), "gas"] <- 0  # Set predicted gasoline expenditure to zero if user inputs zero vehicles (which is actually "1" in nd$veh after +1 to original value (above)
   
   # Electricity monthly expenditure (mean and approximately 97.5th percentile)
   elec <- cbind(mgcv::predict.gam(elec_model_gam, newdata = nd), 1.1 * quantreg::predict.rq(elec_model_rq, newdata = nd))
+  elec <- pmax(elec, 10.9)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
   elec <- signif(elec * nd$cents_kwh * nd$elec_adjust * dir.adj / 12, digits = 2)
   colnames(elec) <- c("elec", "elec_upr")
   
@@ -345,18 +348,21 @@ predictModel2 <- function(input) {
     if (d$hfuel[1] == "Natural gas") {
       if (!test) d$heat_ratio <- d$ngas_ratio
       out <- cbind(mgcv::predict.gam(ngas_model_gam, newdata = d), 1.1 * quantreg::predict.rq(ngas_model_rq, newdata = d)) * ifelse(!test, d$ngasprice, d$heatprice) * d$ngas_adjust
+      out <- pmax(out, 0.47)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
       out <- cbind(out, d$Natural_gas_cie / d$ngas_adjust)
     }
     
     if (d$hfuel[1] == "LPG/Propane") {
       if (!test) d$heat_ratio <- d$lpg_ratio
       out <- cbind(mgcv::predict.gam(lpg_model_gam, newdata = d), 1.1 * quantreg::predict.rq(lpg_model_rq, newdata = d)) * ifelse(!test, d$lpgprice, d$heatprice) * d$lpg_adjust
+      out <- pmax(out, 0.32)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
       out <- cbind(out, d$LPG_cie / d$lpg_adjust)
     }
     
     if (d$hfuel[1] == "Heating oil") {
       if (!test) d$heat_ratio <- d$hoil_ratio
       out <- cbind(mgcv::predict.gam(hoil_model_gam, newdata = d), 1.1 * quantreg::predict.rq(hoil_model_rq, newdata = d)) * ifelse(!test, d$hoilprice, d$heatprice) * d$hoil_adjust 
+      out <- pmax(out, 2.3)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
       out <- cbind(out, d$Heating_oil_cie / d$hoil_adjust)
     }
     
@@ -454,9 +460,10 @@ predictModel2 <- function(input) {
 # nd <- data.frame(zip = "80524", na = 2, nc = 2, hinc = 50e3, hfuel = "Natural gas", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = c("94062","80524","80521"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
+# nd <- data.frame(zip = "92626", na = 1, nc = 0, hinc = 100e3, hfuel = "Electricity", veh = 1, htype = "Apartment building", stringsAsFactors = FALSE)
 # 
 # test <- predictModel2(nd)
-# 
+#
 # # Total monthly cost given by formula
 # cost <- gsub("heat", "%d", gsub("elec", "%d", gsub("gas", "%d", test$cost)))
 # cost <- sprintf(cost, as.integer(test$gas), as.integer(test$elec), as.integer(test$heat))
