@@ -8,3 +8,5 @@ exampleR.Rproj
 /documentation
 .Rhistory
 /R/deprecated
+.gitignore
+.Rbuildignore
