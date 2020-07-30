@@ -107,18 +107,18 @@
 #'   \code{input}. The output variables are: \itemize{ \item{div_pre: household
 #'   pre-tax annual dividend} \item{mrate: estimated marginal federal tax rate
 #'   (see \code{\link{margRate}})} \item{cost: character string giving formula
-#'   that (when evaluated) returns annual policy cost given monthly average
+#'   that (when evaluated) returns annual policy cost given annual total
 #'   expenditure inputs for gasoline (gas), electricity (elec), and heating fuel
-#'   (heat)} \item{gas: predicted average monthly gasoline expenditure for
+#'   (heat)} \item{gas: predicted annual gasoline expenditure for
 #'   household (used as slider preset in online calculator)} \item{elec:
-#'   predicted average monthly electricity expenditure for household (used as
-#'   slider preset in online calculator)} \item{heat: predicted average monthly
+#'   predicted annual electricity expenditure for household (used as
+#'   slider preset in online calculator)} \item{heat: predicted annual
 #'   primary heating fuel expenditure for household (used as slider preset in
 #'   online calculator; zero if not applicable)} \item{gas_upr: predicted
-#'   maximum feasible monthly gasoline expenditure for household (used as slider
+#'   maximum feasible annual gasoline expenditure for household (used as slider
 #'   max value in online calculator)} \item{elec_upr: predicted maximum feasible
-#'   monthly electricity expenditure for household (used as slider max value in
-#'   online calculator)} \item{heat_upr: predicted maximum feasible monthly
+#'   annual electricity expenditure for household (used as slider max value in
+#'   online calculator)} \item{heat_upr: predicted maximum feasible annual
 #'   primary heating fuel expenditure for household (used as slider max value in
 #'   online calculator; zero if not applicable)} }
 #'
@@ -140,36 +140,14 @@
 #' @importFrom mgcv predict.gam
 #' @importFrom utils read.csv
 
-predictModel2 <- function(input) {
+predictModel3 <- function(input) {
   
-  # Assumed carbon price ($ per ton CO2)
-  carbon.price <- 15
-  
-  # Assumed total tax burden
-  total.tax <- 78.5 * 1e9
-  
-  # Indirect ("core") tax burden adjustment factor. This is the ratio of assumed tax burden
-  # (total.tax) to analogous figure in original study ($93.4 billion). Since the
-  # models make predictions based on original study, it is necessary to adjust
-  # "core" emissions estimate to reflect fact that assumed tax base is smaller
-  # than that calculated/used for original study (i.e. scale down all "core
-  # emissions" model estimates)
-  core.adj <- 78.5 / 93.4
-  
-  # Direct tax burden adjustment factor
-  # This is based on calculation that total direct tax burden should be 3.5% lower than estimated using 2012 consumption levels and updated electricity CIE (see version 2 memo prepared for CCL)
-  dir.adj <- 0.965
-  
-  # Adult pre-tax dividend amount
-  # Hard-coded; originally based on original impact study for 2008-2012 period
-  # Total revenue in analysis assumes $15 per ton at 2012 emission levels; $377 is based on those assumptions
-  #div.adult <- 377.47  # Original study amount
-  
-  # REVISED June 22, 2019: Updated to reflect new assumption that total dividend amount is $73.3 billion and change in number of minors per household that are eligible for half-share
-  # Revised (HR 7173) amount (see code in Projects/CCL/Scripts/Simulate household-level cost and dividend.R)
-  div.adult <- 274
-  
-  #-----
+  # Helper function
+  enforceLimits <- function(x, limits) {
+    x <- pmax(x, limits[1])
+    x <- pmin(x, limits[2])
+    return(x)
+  }
   
   # Input can either be csv file or data
   nd <- if (is.character(input) && file.exists(input)) {
@@ -188,18 +166,14 @@ predictModel2 <- function(input) {
   stopifnot("veh" %in% nms)
   stopifnot("htype" %in% nms)
   
-  # If the direct emissions pass-through rate ('dirfrac') is not provided in 'input', set to default value of 0.95
-  if ("dirfrac" %in% nms == FALSE) nd$dirfrac <- 0.950 else stopifnot(all(nd$dirfrac >= 0 & nd$dirfrac <= 1))
-  
-  # If the indirect emissions pass-through rate ('indfrac') is not provided in 'input', set to default value of 0.3466
-  if ("indfrac" %in% nms == FALSE) nd$indfrac <- 0.495 else stopifnot(all(nd$indfrac >= 0 & nd$indfrac <= 1))
-  
-  # Calculate overall share of tax burden that falls on capital, assuming 45% of total emissions are direct and 55% indirect
-  nd$capfrac <- 1 - (0.45 * nd$dirfrac + 0.55 * nd$indfrac)
-  
   # Detect if the input is a test dataset
   # If the original training data is submitted, all 'zip' values will be NA
   test <- all(is.na(nd$zip))
+  
+  # NOT USED. Ensure that a single scenario is specified ('S')
+  # stopifnot("scenario" %in% nms)
+  # S <- nd$scenario[[1]]
+  # stopifnot(all(nd$scenario == S))
   
   #-----
   
@@ -209,87 +183,28 @@ predictModel2 <- function(input) {
   # If statement used to allow testing with the original dataset (which contains spatial variables but not zip code)
   if (!test) {
     nd <- merge(nd, zip_lookup, by = "zip", sort = FALSE, all.x = TRUE)
-    if (any(is.na(nd$cents_kwh))) stop("Zip code not found.")
+    if (any(is.na(nd$census_urban))) {
+      miss <- which(is.na(nd$census_urban))
+      j <- intersect(names(nd), names(zip_lookup))
+      nd[miss, j] <- zip_lookup[match(substring(nd$zip[miss], 1, 4), substring(zip_lookup$zip, 1, 4)), j]
+      if (any(is.na(nd$census_urban))) stop("Zip code not found.")  # If still missing, stop with error
+    } 
   }
   
-  # Assign price adjustment factors based on assigned state
-  # if() statement used to allow testing with the original dataset (no price adjustments necessary)
-  if (!test) {
-    nd <- merge(nd, price_adjustment, sort = FALSE)
-  } else {
-    temp <- price_adjustment
-    temp[,-1] <- 1  # Sets all '_adjust' variables to 1
-    nd <- merge(nd, temp, sort = FALSE)
-  }
-  
-  # Ensure that original order to maintained; probably not necessry is sort = FALSE in merge()
+  # Ensure that original order to maintained; probably not necessary if sort = FALSE in merge()
   nd <- nd[order(nd$id),]
   
-  # Estimate household marginal tax rate
-  # This is based on 2017 rates and brackets using household income as reported as user
-  nd$mrate <- margRate(nd)
-  
   #-----
   
-  # Calculate pre-tax dividend amount (2012 dollars)
-  if (!test) {
-    #nd$div_pre <- round(div.adult * nd$na + 0.5 * div.adult * pmin(2, nd$nc))  # Original study definition
-    nd$div_pre <- round(div.adult * nd$na + 0.5 * div.adult * nd$nc)  # ADDED June 20, 2019: Revised (HR 7173) definition
-  } else {
-    # The "nc - 1" is necessary to account for fact that test dataset added 1 to both 'nc' and 'veh' to avoid errors with log() in model formulas
-    # Rounding necessary to account for jitter added to test dataset numeric variables
-    #nd$div_pre <- round(div.adult * round(nd$na) + 0.5 * div.adult * pmin(2, round(nd$nc - 1)))  # Original study definition
-    nd$div_pre <- round(div.adult * round(nd$na) + 0.5 * div.adult * round(nd$nc - 1))  # ADDED June 20, 2019: Revised (HR 7173) definition
-  }
-  
-  #-----
-  
-  # Fuel-price-to-income ratios used in model fitting
-  # Note that fuel prices are adjusted from 2012 to current price levels before calculating ratios with current income
-  # If statement will skip this if using test dataset (*_ratio variables already in the data frame)
-  if (!test) {
-    nd$elec_ratio <- nd$cents_kwh * nd$elec_adjust / (nd$hinc / 1e3)
-    nd$gas_ratio <- nd$gasprice * nd$gas_adjust / (nd$hinc / 1e3)
-    nd$ngas_ratio <- nd$ngasprice * nd$ngas_adjust / (nd$hinc / 1e3)
-    nd$lpg_ratio <- nd$lpgprice * nd$lpg_adjust / (nd$hinc / 1e3)
-    nd$hoil_ratio <- nd$hoilprice * nd$hoil_adjust / (nd$hinc / 1e3)
-  }
-  
-  # Deflate user input household income to 2012 levels using CPI
+  # Deflate user input household income to 2018 levels using CPI
   # This ensures that income matches currency units of original data and models
-  nd$hinc <- nd$hinc / nd$cpi_adjust
-  
-  # Total number of people in household
-  nd$np <- nd$na + nd$nc
+  nd$hinc <- nd$hinc * 0.98  # Hard-coded to deflate from 2020 to 2018 levels
   
   #----------------------
   
-  # TEST:
-  # Estimate household capital accounts total
-  nd$finval <- as.numeric(pmax(0, mgcv::predict.gam(finval_model_gam, newdata = nd)))
-  
-  # Calculate household tax burden associated with exposure to capital income
-  # First term is total tax burden falling on capital; second terms is household-estimated share of national investment assets
-  captax <- total.tax * nd$capfrac * nd$finval / (54.87 * 1e12)
-  
-  #----------------------
-  
-  # Core emissions
-  # Calculate 90% CI margin of error (MOE) This is calculated by estimating the
-  # standard deviation, assuming a Normal distribution with specified 25th and
-  # 75th percentiles (the IQR is approximately 1.35x the standard deviation)
-  
-  # Add 1 to 'nc' and 'veh' to allow log() calls in model prediction
-  # Not necessary when test dataset is being used
-  if (!test) {
-    nd$nc <- nd$nc + 1
-    nd$veh <- nd$veh + 1
-  }
-  
-  # There were no 'Other or none' observations in the trimmed training dataset,
+  # There are no 'Other or none' observations in the training dataset,
   # so this replacement assures the core_model predict() function will not fail
   # 'nd' object retains 'Other or none' so that hfuel logic further down still works
-  
   other.id <- which(nd$hfuel == "Other or none")
   if (length(other.id) > 0) {
     nd$hfuel[other.id] <- "Natural gas"
@@ -297,73 +212,128 @@ predictModel2 <- function(input) {
   
   # If user does not know heating fuel, make a guess
   # Fitted GLM model returns probability of Natural gas; Electricity otherwise (only two options)
-  
   donotknow.id <- which(nd$hfuel == "Do not know")
   if (length(donotknow.id) > 0) {
-    pred <- stats::predict.glm(hfuel_model, newdata = nd[donotknow.id,])
+    pred <- stats::predict.glm(hfuel_glm, newdata = nd[donotknow.id,])
     # Convert from original scale to class probability (probability of Natural gas)
     # https://stats.stackexchange.com/questions/164648/output-of-logistic-regression-prediction
     prob <- exp(pred) / (1 + exp(pred))
-    nd$hfuel[donotknow.id] <- ifelse(prob >= 0.5, "Natural gas", "Electricity")
+    nd$hfuel[donotknow.id] <- ifelse(prob > 0.5, "Natural gas", "Electricity")
   }
   
-  # ESTIMATE INDIRECT ("core") emissions and associated standard deviation, assuming Normal distribution
-  # Note exp() used to convert log prediction value
-  core <- as.numeric(exp(mgcv::predict.gam(core_model_gam, newdata = nd)))
-  core <- pmax(core, 4.6)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
+  #----------------------
   
-  # TURNED OFF June 22, 2019 with requested revisions, as uncertainty not used by calculator and not calculated for 'captax' tax burden component
-  # q <- exp(quantreg::predict.rq(core_model_rq, newdata = nd))
+  # Pre-tax dividend amount; computed explicitly
+  nd$div_pre <- round((nd$na + 0.5 * nd$nc) * scenario_parameters$dividend)
+  
+  # Estimate tax rate on the dividend
+  nd$mrate <- as.numeric(mgcv::predict.gam(div_taxrate_gam, newdata = nd))
+  nd$mrate <- enforceLimits(nd$mrate, scenario_parameters$div_taxrate)
+  nd$mrate <- signif(nd$mrate, 3)
+  
+  #----------------------
+  
+  # SCENARIO 3 INDIRECT ("core") tax burden
+  core <- as.numeric(mgcv::predict.gam(core_cost_gam, newdata = nd))
+  core <- enforceLimits(core, scenario_parameters$bcore_3)
+  
+  # Associated standard deviation, assuming Normal distribution
+  # Note exp() used to convert log prediction values for the 'rq' models
+  q <- exp(quantreg::predict.rq(core_cost_rq, newdata = nd))
+  if (nrow(nd) == 1) {
+    stdev <- (q[2] - q[1]) / 1.35
+  } else {
+    stdev <- (q[,2] - q[,1]) / 1.35
+  }
+  
+  #-----
+  
+  # SCENARIO 2 INDIRECT ("core") tax burden
+  # core2 <- as.numeric(mgcv::predict.gam(core2_cost_gam, newdata = nd))
+  # core2 <- enforceLimits(core2, scenario_parameters$bcore_2)
+  # 
+  # # Associated standard deviation, assuming Normal distribution
+  # q <- exp(quantreg::predict.rq(core2_cost_rq, newdata = nd))
   # if (nrow(nd) == 1) {
-  #   stdev <- (q[2] - q[1]) / 1.35
+  #   stdev2 <- (q[2] - q[1]) / 1.35
   # } else {
-  #   stdev <- (q[,2] - q[,1]) / 1.35
+  #   stdev2 <- (q[,2] - q[,1]) / 1.35
   # }
+  
+  # Estimate 90% margin of error (in dollars, annual)
+  # Since emissions/tax burden from fuel use is assumed to be accurate (based on user specified values),
+  #  the overall MOE is the modeled uncertainty in the "core" emissions
+  #nd$moe1 <- round(1.645 * stdev1)
+  #nd$moe2 <- round(1.645 * stdev2)
+  nd$moe <- round(1.645 * stdev)
   
   #----------------------
   
   # Predict typical (mean) and upper-bound (approximately 97.5th percentile) expenditure values used to set the "page 2" slider preset and maximum value
-  # Note that all dollar values are adjusted to reflect current price levels ("_adjust" variables)
-  # Note that the models output annual physical units consumed; converted to monthly expenditure at current prices
   
-  # Gasoline monthly expenditure (mean and approximately 97.5th percentile)
-  gas <- cbind(mgcv::predict.gam(gas_model_gam, newdata = nd), 1.1 * quantreg::predict.rq(gas_model_rq, newdata = nd))
-  gas <- pmax(gas, 0)  # ADDED 11/08/19 to ensure predicted value is not less than zero
-  gas <- signif(gas * nd$gasprice * nd$gas_adjust * dir.adj / 12, digits = 2)
-  colnames(gas) <- c("gas", "gas_upr")
-  gas[which(nd$veh == 1), "gas"] <- 0  # Set predicted gasoline expenditure to zero if user inputs zero vehicles (which is actually "1" in nd$veh after +1 to original value (above)
+  # Gasoline annual expenditure (mean and approximately 97.5th percentile)
   
-  # Electricity monthly expenditure (mean and approximately 97.5th percentile)
-  elec <- cbind(mgcv::predict.gam(elec_model_gam, newdata = nd), 1.1 * quantreg::predict.rq(elec_model_rq, newdata = nd))
-  elec <- pmax(elec, 10.9)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
-  elec <- signif(elec * nd$cents_kwh * nd$elec_adjust * dir.adj / 12, digits = 2)
-  colnames(elec) <- c("elec", "elec_upr")
+  gas <- cbind(mgcv::predict.gam(gas_expend_gam, newdata = nd),
+               quantreg::predict.rq(gas_expend_rq, newdata = nd) * 1.2,
+               mgcv::predict.gam(gas_cie_gam, newdata = nd))
+  colnames(gas) <- c("gas", "gas_upr", "gas_cie")
+  gas[, "gas"] <- enforceLimits(gas[, "gas"], scenario_parameters$gas)
+  gas[, "gas_upr"] <- enforceLimits(gas[, "gas_upr"], scenario_parameters$gas)
+  gas[, "gas_cie"] <- enforceLimits(gas[, "gas_cie"], scenario_parameters$gas_cie)
+  gas[which(nd$veh == 0), "gas"] <- 0  # Set predicted gasoline expenditure to zero if user inputs zero vehicles
+  gas <- gas * nd$seds_gas_price  # Model output is original value divided by state average price; this converts back to original units
+  gas[, 2] <- pmax(gas[, 2], 2 * gas[, 1])  # The upper expenditure value is set to minimum 2x the mean prediction
+  gas <- signif(gas, 3)
   
-  # Primary heating fuel monthly expenditure (median and approximately 95th percentile)
-  # Note that expenditure values are adjusted to current price levels AND
-  #  CIE values are adjusted to reflect change in fuel prices since 2012 (if price went up, CIE goes down)
-  # Note that model physical consumption is converted to expenditure at current prices
+  #-----
+  
+  # Electricity annual expenditure (mean and approximately 97.5th percentile)
+  
+  elec <- cbind(mgcv::predict.gam(elec_expend_gam, newdata = nd), 
+                quantreg::predict.rq(elec_expend_rq, newdata = nd) * 1.2,
+                mgcv::predict.gam(elec_cie_gam, newdata = nd))
+  colnames(elec) <- c("elec", "elec_upr", "elec_cie")
+  elec[, "elec"] <- enforceLimits(elec[, "elec"], scenario_parameters$elec)
+  elec[, "elec_upr"] <- enforceLimits(elec[, "elec_upr"], scenario_parameters$elec)
+  elec[, "elec_cie"] <- enforceLimits(elec[, "elec_cie"], scenario_parameters$elec_cie)
+  elec <- elec * nd$seds_elec_price  # Model output is annual expenditure divided by state average price; this converts back to original units
+  elec[, 2] <- pmax(elec[, 2], 2 * elec[, 1])  # The upper expenditure value is set to minimum 2x the mean prediction
+  elec <- signif(elec, 3)
+  
+  #-----
+  
+  # Primary heating fuel annual expenditure (median and approximately 95th percentile)
+
   predHeatModels <- function(d) {
     
     if (d$hfuel[1] == "Natural gas") {
-      if (!test) d$heat_ratio <- d$ngas_ratio
-      out <- cbind(mgcv::predict.gam(ngas_model_gam, newdata = d), 1.1 * quantreg::predict.rq(ngas_model_rq, newdata = d)) * ifelse(!test, d$ngasprice, d$heatprice) * d$ngas_adjust
-      out <- pmax(out, 0.47)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
-      out <- cbind(out, d$Natural_gas_cie / d$ngas_adjust)
+      out <- cbind(mgcv::predict.gam(ngas_expend_gam, newdata = d), 
+                   quantreg::predict.rq(ngas_expend_rq, newdata = d) * 1.2,
+                   mgcv::predict.gam(ngas_cie_gam, newdata = d))
+      out[, 1] <- enforceLimits(out[, 1], scenario_parameters$ngas)
+      out[, 2] <- enforceLimits(out[, 2], scenario_parameters$ngas)
+      out[, 3] <- enforceLimits(out[, 3], scenario_parameters$ngas_cie)
+      out <- out * d$seds_ngas_price  # Model output is annual expenditure divided by state average price; this converts back to original units
     }
     
     if (d$hfuel[1] == "LPG/Propane") {
-      if (!test) d$heat_ratio <- d$lpg_ratio
-      out <- cbind(mgcv::predict.gam(lpg_model_gam, newdata = d), 1.1 * quantreg::predict.rq(lpg_model_rq, newdata = d)) * ifelse(!test, d$lpgprice, d$heatprice) * d$lpg_adjust
-      out <- pmax(out, 0.32)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
-      out <- cbind(out, d$LPG_cie / d$lpg_adjust)
+      out <- cbind(mgcv::predict.gam(lpg_expend_gam, newdata = d), 
+                   quantreg::predict.rq(lpg_expend_rq, newdata = d) * 1.2,
+                   mgcv::predict.gam(lpg_cie_gam, newdata = d))
+      out[, 1] <- enforceLimits(out[, 1], scenario_parameters$lpg)
+      out[, 2] <- enforceLimits(out[, 2], scenario_parameters$lpg)
+      out[, 3] <- enforceLimits(out[, 3], scenario_parameters$lpg_cie)
+      out <- out * d$seds_lpg_price  # Model output is annual expenditure divided by state average price; this converts back to original units
     }
     
     if (d$hfuel[1] == "Heating oil") {
-      if (!test) d$heat_ratio <- d$hoil_ratio
-      out <- cbind(mgcv::predict.gam(hoil_model_gam, newdata = d), 1.1 * quantreg::predict.rq(hoil_model_rq, newdata = d)) * ifelse(!test, d$hoilprice, d$heatprice) * d$hoil_adjust 
-      out <- pmax(out, 2.3)  # ADDED 11/08/19 to force a minimum feasible hard-coded value, based on 1st percentile in original training data
-      out <- cbind(out, d$Heating_oil_cie / d$hoil_adjust)
+      out <- cbind(mgcv::predict.gam(hoil_expend_gam, newdata = d), 
+                   quantreg::predict.rq(hoil_expend_rq, newdata = d) * 1.2,
+                   mgcv::predict.gam(hoil_cie_gam, newdata = d))
+      out[, 1] <- enforceLimits(out[, 1], scenario_parameters$hoil)
+      out[, 2] <- enforceLimits(out[, 2], scenario_parameters$hoil)
+      out[, 3] <- enforceLimits(out[, 3], scenario_parameters$hoil_cie)
+      out <- out * d$seds_fuel_price  # Model output is annual expenditure divided by state average price; this converts back to original units
     }
     
     # If heating fuel is Electricity, return zeros
@@ -373,7 +343,6 @@ predictModel2 <- function(input) {
     
     out <- cbind(d$id, out)
     colnames(out) <- c("id", "heat", "heat_upr", "heat_cie")
-    out[,c("heat", "heat_upr")] <- signif(dir.adj * out[,c("heat", "heat_upr")] / 12, 2)  # Applies 'dir.adj' consumption adjustment to both 'heat' and 'heat_upr'
     return(out)
     
   }
@@ -381,50 +350,76 @@ predictModel2 <- function(input) {
   heat <- by(nd, nd$hfuel, predHeatModels)
   heat <- as.data.frame(do.call("rbind", heat))
   heat <- heat[order(heat$id), -1]
+  heat[, 2] <- pmax(heat[, 2], 2 * heat[, 1])  # The upper expenditure value is set to minimum 2x the mean prediction
+  heat <- signif(heat, 3)
   
   #-----
   
-  # Estimate 90% margin of error (in dollars, annual)
-  # Since emissions/tax burden from fuel use is assumed to be accurate (based on user specified values),
-  #  the overall MOE is the modeled uncertainty in the "core" emissions
-  #nd$moe <- round(1.645 * stdev * carbon.price)
+  # Annual cost equations
   
-  #-----
+  # For each scenario, the 'cost' formula evaluates to:
+  # Indirect "core" burden PLUS 
+  # Household direct emissions (expend * cie)  multiplied by the average tax burden per kgCO2 direct emissions ('fct')
   
-  # Annual cost equation
-  # NOTE that 'core' model estimate (indirect emissions) is adjusted by:
-  #  1) 'core.adj' to reflect new assumption about total tax burden (less than in original study)
-  #  2) and 'nd$indfrac', since only a portion of the tax burden is passed to consumers as higher prices for indirect emissions
-  # Direct tax burden (gasoline, electricity, and heating fuel) is adjusted for passthrough by 'nd$dirfrac'
-  # !!! Revised Aug 2, 2019 to reflect fact that only a portion of CIE is passed forward to consumer prices, based on values of 'dirfrac' and 'indfrac'
-  # Input fuel expenditure values are MONTHLY, hence 12x applied to multiplicative term to make the resulting cost ANNUAL
+  # For each scenario, calculate the direct household tax burden ($) per kgCO2-eq (across all households)
+  # This is multiplied by estimate of household direct emissions to arrive at a direct tax burden in dollars
+  #fct1 <- signif(scenario_parameters$direct_cost1 / scenario_parameters$direct_kgco2, 3)  # Scenario 1
+  #fct2 <- signif(scenario_parameters$direct_cost2 / scenario_parameters$direct_kgco2, 3)  # Scenario 2
+  fct <- signif(scenario_parameters$direct_cost3 / scenario_parameters$direct_kgco2, 3)  # Scenario 3
+  
+  #---
+  
+  # Scenario 1 cost formula
+  
+  # nd$cost1 <- paste(
+  #   
+  #   # Burden due to sources other than direct emissions
+  #   round(core1),
+  #   
+  #   # Burden due to direct emissions
+  #   paste0(factor1, " * (gas * ", gas[, 3], " + elec * ", elec[, 3], " + heat * ", heat[, 3], ")"),
+  #   
+  #   sep = " + ")
+  # 
+  # #---
+  # 
+  # # Scenario 2 cost formula
+  # 
+  # nd$cost2 <- paste(
+  #   
+  #   # Burden due to sources other than direct emissions
+  #   round(core2),
+  #   
+  #   # Burden due to direct emissions
+  #   paste0(factor2, " * (gas * ", gas[,3], " + elec * ", elec[, 3], " + heat * ", heat[, 3], ")"),
+  #   
+  #   sep = " + ")
+  
+  #---
+  
+  # Cost formula
   
   nd$cost <- paste(
     
-    # Burden due to capital-related share of tax
-    round(captax, 2),
+    # Burden due to sources other than direct emissions
+    round(core),
     
-    # Burden due to indirect household emissions
-    round(core * core.adj * nd$indfrac * carbon.price, 2),
-    
-    # Burden due to gasoline consumption
-    paste0("gas * ", signif(12 * nd$Gasoline_cie * nd$dirfrac / nd$gas_adjust * (carbon.price / 1e3), 4)),  # Input is monthly expenditure
-    
-    # Burden due to electricity consumption
-    # Assumes use of electricity CIE value that is extrapolated to 2020
-    # NOTE: No 'dir.adj' is applied to electricity, as the projected 2020 CIE is taken as accurate
-    paste0("elec * ", signif(12 * nd$Electricity_cie * nd$dirfrac / nd$elec_adjust * (carbon.price / 1e3), 4)),  # Input is monthly expenditure
-    
-    # Burden due to heating fuel consumption (natural gas, LPG, etc.)
-    # Note: Heating fuel CIE already divided by fuel-specific price change (above)
-    paste0("heat * ", signif(12 * heat$heat_cie * nd$dirfrac * (carbon.price / 1e3), 4)), 
+    # Burden due to direct emissions
+    paste0(fct, " * (gas * ", gas[,3], " + elec * ", elec[, 3], " + heat * ", heat[, 3], ")"),
     
     sep = " + ")
+  
+  
+  #---
   
   # For users that did not know their heating fuel, replace the 'heat' component
   #  of cost equation with the default expenditure value and set 'heat' and 'heat_upr' variables to zero
   if (length(donotknow.id) > 0) {
-    for (i in donotknow.id) nd$cost[i] <- sub("heat", heat$heat[i], nd$cost[i], fixed = TRUE)
+    for (i in donotknow.id) {
+      # nd$cost1[i] <- sub("heat", round(heat$heat[i]), nd$cost1[i], fixed = TRUE)
+      # nd$cost2[i] <- sub("heat", round(heat$heat[i]), nd$cost2[i], fixed = TRUE)
+      nd$cost[i] <- sub("heat", round(heat$heat[i]), nd$cost[i], fixed = TRUE)
+    }
     heat$heat[donotknow.id] <- 0
     heat$heat_upr[donotknow.id] <- 0
   }
@@ -432,7 +427,11 @@ predictModel2 <- function(input) {
   # For users that report heating fuel as "Other or none", replace the 'heat' component
   #  of cost equation with ZERO value and set heat-related presets to zero
   if (length(other.id) > 0) {
-    for (i in other.id) nd$cost[i] <- sub("heat", 0, nd$cost[i], fixed = TRUE)
+    for (i in other.id) {
+      # nd$cost1[i] <- sub("heat", 0, nd$cost1[i], fixed = TRUE)
+      # nd$cost2[i] <- sub("heat", 0, nd$cost2[i], fixed = TRUE)
+      nd$cost[i] <- sub("heat", 0, nd$cost[i], fixed = TRUE)
+    }
   }
   heat[other.id,] <- 0
   
@@ -440,10 +439,8 @@ predictModel2 <- function(input) {
   
   # Return results matrix
   psets <- cbind(gas, elec, heat)
-  psets[psets < 0] <- 0
   result <- cbind(nd, psets)
-  #result <- subset(result, select = c(div_pre, mrate, cost, moe, gas, elec, heat, gas_upr, elec_upr, heat_upr))
-  result <- subset(result, select = c(div_pre, mrate, cost, gas, elec, heat, gas_upr, elec_upr, heat_upr))  # 'moe' component removed June 22, 2019
+  result <- subset(result, select = c(div_pre, mrate, cost, moe, gas, elec, heat, gas_upr, elec_upr, heat_upr))
   
   return(result)
   
@@ -454,20 +451,24 @@ predictModel2 <- function(input) {
 # INPUT FOR TESTING:
 # require(quantreg, quietly = TRUE)
 # require(mgcv, quietly = TRUE)
-# source("R/marginal rate.R")
-# for (i in list.files("data/", full.names = TRUE)) load(i)
-# 
+# for (i in list.files("data", full.names = TRUE)) load(i)
+
 # nd <- data.frame(zip = "80524", na = 2, nc = 2, hinc = 50e3, hfuel = "Natural gas", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
 # nd <- data.frame(zip = "94062", na = 2, nc = 2, hinc = 50e3, hfuel = "Other or none", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
-# nd <- data.frame(zip = c("94062","80524","80521"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment building", "Other"), stringsAsFactors = FALSE)
-# nd <- data.frame(zip = "92626", na = 1, nc = 0, hinc = 100e3, hfuel = "Electricity", veh = 1, htype = "Apartment building", stringsAsFactors = FALSE)
+# nd <- data.frame(zip = c("94062","80524","80521"), na = c(2, 1, 3), nc = c(2, 0, 3), hinc = c(50e3, 300e3, 100e3), hfuel = c("Do not know", "Natural gas", "Other or none"), veh = c(2, 0, 3), htype = c("Stand-alone house", "Apartment or condo", "Other"), stringsAsFactors = FALSE)
+# nd <- data.frame(zip = "92626", na = 1, nc = 0, hinc = 100e3, hfuel = "Electricity", veh = 1, htype = "Apartment or condo", stringsAsFactors = FALSE)
 # 
-# test <- predictModel2(nd)
-#
-# # Total monthly cost given by formula
+# # Manual check
+# nd <- data.frame(zip = "36101", na = 2, nc = 0, hinc = 96400, hfuel = "Electricity", veh = 2, htype = "Stand-alone house", stringsAsFactors = FALSE)
+# nd <- data.frame(zip = "52322", na = 3, nc = 1, hinc = 59100, hfuel = "Electricity", veh = 2, htype = "Other", stringsAsFactors = FALSE)
+# 
+# # Call prediction function
+# test <- predictModel3(nd)
+# 
+# # Total monthly "cost" given by formula
 # cost <- gsub("heat", "%d", gsub("elec", "%d", gsub("gas", "%d", test$cost)))
 # cost <- sprintf(cost, as.integer(test$gas), as.integer(test$elec), as.integer(test$heat))
-# cost <- as.numeric(sapply(cost, function(x) eval(parse(text = x)))) / 12 
+# cost <- as.numeric(sapply(cost, function(x) eval(parse(text = x)))) / 12  # Convert annual to monthly
 # 
 # # Monthly post-tax dividend
 # div <- test$div_pre * (1 - test$mrate) / 12
